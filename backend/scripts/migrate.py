@@ -349,7 +349,7 @@ def status():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="vx版Agent集合体 — 数据库迁移工具",
+        description="Yu — 数据库迁移工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:

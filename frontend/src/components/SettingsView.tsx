@@ -132,7 +132,7 @@ export default function SettingsView() {
         <div>
           <h3 className="text-sm font-medium text-gray-700 mb-2">关于</h3>
           <div className="text-sm text-gray-500 space-y-1">
-            <p>vx版Agent集合体</p>
+            <p>Yu</p>
             <p>版本: 0.5.0</p>
             <p>AI Agent Messenger OS</p>
           </div>

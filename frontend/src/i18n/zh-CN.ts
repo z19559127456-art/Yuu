@@ -99,7 +99,7 @@ const zh: Record<string, string> = {
   'settings.language': '语言',
   'settings.about': '关于',
   'settings.version': '版本',
-  'settings.app_name': 'vx版Agent集合体',
+  'settings.app_name': 'Yu',
   'settings.app_desc': 'AI Agent Messenger OS',
 };
 

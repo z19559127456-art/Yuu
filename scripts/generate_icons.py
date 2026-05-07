@@ -188,7 +188,7 @@ def generate_icons(svg_input: str | None = None, output_dir: Path | None = None)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="vx版Agent集合体 — 应用图标生成")
+    parser = argparse.ArgumentParser(description="Yu — 应用图标生成")
     parser.add_argument("--input", type=str, default=None,
                         help="源 PNG 文件路径（默认使用内置 SVG）")
     parser.add_argument("--output", type=str, default=None,

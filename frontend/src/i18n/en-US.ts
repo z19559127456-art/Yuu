@@ -99,7 +99,7 @@ const en: Record<string, string> = {
   'settings.language': 'Language',
   'settings.about': 'About',
   'settings.version': 'Version',
-  'settings.app_name': 'vx Agent Collective',
+  'settings.app_name': 'Yu',
   'settings.app_desc': 'AI Agent Messenger OS',
 };
 

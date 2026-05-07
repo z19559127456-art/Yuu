@@ -18,7 +18,7 @@ sock = Sock(app)
 @app.route("/")
 def index():
     return jsonify({
-        "name": "vx版Agent集合体",
+        "name": "Yu",
         "version": "0.5.0",
         "status": "running"
     })
@@ -36,6 +36,6 @@ def websocket(ws):
 
 
 if __name__ == "__main__":
-    print("Starting vx版Agent集合体 Backend...")
+    print("Starting Yu Backend...")
     init_db()
     app.run(host="localhost", port=7890, debug=True)

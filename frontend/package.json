@@ -1,8 +1,8 @@
 {
-  "name": "vx-agent-collective",
+  "name": "yu",
   "version": "0.1.1",
-  "description": "vx版Agent集合体 - AI Agent 桌面平台",
-  "author": "vx Agent Collective",
+  "description": "Yu - AI Agent 桌面平台",
+  "author": "Yu",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -42,9 +42,9 @@
     "vitest-dom": "^0.1.1"
   },
   "build": {
-    "appId": "com.vx-agent-collective.app",
-    "productName": "vx版Agent集合体",
-    "copyright": "Copyright © 2026 vx Agent Collective",
+    "appId": "com.yu.app",
+    "productName": "Yu",
+    "copyright": "Copyright © 2026 Yu",
     "directories": {
       "output": "release",
       "buildResources": "public"
@@ -56,8 +56,8 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "vx-agent-collective",
-      "repo": "vx-agent-collective"
+      "owner": "yu",
+      "repo": "yu"
     },
     "extraResources": [
       {
@@ -89,7 +89,7 @@
       "displayLanguageSelector": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "vx版Agent集合体",
+      "shortcutName": "Yu",
       "installerIcon": "public/icon.ico",
       "uninstallerIcon": "public/icon.ico",
       "installerHeaderIcon": "public/icon.ico",
