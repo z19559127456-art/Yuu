@@ -19,7 +19,7 @@ sock = Sock(app)
 def index():
     return jsonify({
         "name": "Yu",
-        "version": "0.1.6",
+        "version": "0.1.8",
         "status": "running"
     })
 

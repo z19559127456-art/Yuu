@@ -129,6 +129,20 @@ MIGRATIONS = [
             DROP INDEX IF EXISTS idx_conversations_updated;
         """,
     },
+    # v6: 添加消息 group_id 字段（群聊消息分组支持）
+    {
+        "version": 6,
+        "name": "add_message_group_id",
+        "description": "为 messages 表添加 group_id 列以支持群聊消息持久化",
+        "up": """
+            ALTER TABLE messages ADD COLUMN group_id VARCHAR;
+            CREATE INDEX IF NOT EXISTS idx_messages_group_id
+                ON messages(group_id, created_at);
+        """,
+        "down": """
+            DROP INDEX IF EXISTS idx_messages_group_id;
+        """,
+    },
 ]
 
 LATEST_VERSION = max(m["version"] for m in MIGRATIONS) if MIGRATIONS else 0
