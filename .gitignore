@@ -55,3 +55,6 @@ release/
 htmlcov/
 .nyc_output/
 coverage/
+backend/dist/
+backend/build/
+backend/*.spec

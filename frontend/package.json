@@ -1,7 +1,8 @@
 {
   "name": "vx-agent-collective",
-  "version": "0.5.0",
-  "description": "vx版Agent集合体 - Frontend",
+  "version": "0.1.1",
+  "description": "vx版Agent集合体 - AI Agent 桌面平台",
+  "author": "vx Agent Collective",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -13,6 +14,7 @@
   },
   "dependencies": {
     "dayjs": "^1.11.0",
+    "electron-updater": "^6.8.3",
     "highlight.js": "^11.9.0",
     "lucide-react": "^0.290.0",
     "react": "^18.2.0",
@@ -52,20 +54,30 @@
       "electron/**/*",
       "package.json"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "vx-agent-collective",
+      "repo": "vx-agent-collective"
+    },
     "extraResources": [
       {
-        "from": "../backend",
-        "to": "backend",
-        "filter": ["**/*", "!venv/**", "!chromadb_store/**", "!__pycache__/**", "!*.pyc", "!tests/**"]
+        "from": "../backend/dist/vx-agent-backend.exe",
+        "to": "backend/vx-agent-backend.exe"
+      },
+      {
+        "from": "../backend/security_policies",
+        "to": "backend/security_policies"
       }
     ],
     "win": {
       "target": {
         "target": "nsis",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       },
       "signAndEditExecutable": false,
-      "sign": false,
+      "sign": "scripts/dummy-sign.js",
       "icon": "public/icon.ico",
       "artifactName": "${productName}-${version}-Setup-${arch}.${ext}"
     },
@@ -92,7 +104,10 @@
     "mac": {
       "target": {
         "target": "dmg",
-        "arch": ["x64", "arm64"]
+        "arch": [
+          "x64",
+          "arm64"
+        ]
       },
       "icon": "public/icon.icns",
       "category": "public.app-category.productivity",
@@ -101,7 +116,9 @@
     "linux": {
       "target": {
         "target": "AppImage",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       },
       "icon": "public/icon-256.png",
       "category": "Office",
