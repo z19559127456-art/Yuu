@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Agent, Conversation, Message, NavItem, HistoryRecord, GroupConversation } from '@/types';
+import type { Agent, Conversation, Message, NavItem, HistoryRecord, GroupConversation, UpdateState } from '@/types';
 
 interface AppState {
   // WebSocket
@@ -29,6 +29,9 @@ interface AppState {
   toolExecuting: { toolName: string; arguments: string } | null;
   isAiResponding: boolean;
   lastError: string | null;
+
+  // Update state
+  updateState: UpdateState | null;
 
   // Actions
   setWs: (ws: WebSocket | null) => void;
@@ -65,6 +68,8 @@ interface AppState {
   setToolExecuting: (exec: { toolName: string; arguments: string } | null) => void;
   setIsAiResponding: (responding: boolean) => void;
   setLastError: (error: string | null) => void;
+
+  setUpdateState: (updateState: UpdateState | null) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -151,4 +156,7 @@ export const useStore = create<AppState>((set) => ({
   setToolExecuting: (exec) => set({ toolExecuting: exec }),
   setIsAiResponding: (responding) => set({ isAiResponding: responding }),
   setLastError: (error) => set({ lastError: error }),
+
+  updateState: null,
+  setUpdateState: (updateState) => set({ updateState }),
 }));

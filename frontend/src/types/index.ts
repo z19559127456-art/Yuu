@@ -181,6 +181,15 @@ export interface HistoryRecord {
 
 export type NavItem = 'chats' | 'contacts' | 'settings';
 
+export type UpdateStatus = 'checking' | 'downloading' | 'ready' | 'up-to-date' | 'error';
+
+export interface UpdateState {
+  status: UpdateStatus | null;
+  version?: string;
+  percent?: number;
+  error?: string;
+}
+
 // WebSocket client messages
 export type WSClientMessage =
   | { type: 'ping' }

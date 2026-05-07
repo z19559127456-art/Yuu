@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const { execFile } = require('child_process')
 const path = require('path')
@@ -6,6 +6,7 @@ const http = require('http')
 
 autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
+let updateDownloading = false
 
 let mainWindow = null
 let backendProcess = null
@@ -91,29 +92,67 @@ function createWindow() {
 
 // ── 更新 ──────────────────────────────────────────────
 function checkForUpdates() {
-  if (process.env.NODE_ENV === 'development') return
-  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[updater] 开发模式，跳过更新检查')
+    return
+  }
+  mainWindow?.webContents.send('update-status', { status: 'checking' })
+  autoUpdater.checkForUpdates().catch((err) => {
     console.log('[updater] 检查更新失败:', err.message)
+    mainWindow?.webContents.send('update-status', { status: 'error', error: err.message })
   })
 }
 
-autoUpdater.on('update-available', () => {
-  mainWindow?.webContents.send('update-status', { status: 'downloading' })
+// IPC: 渲染进程主动请求检查更新
+ipcMain.on('check-for-update', () => {
+  checkForUpdates()
 })
 
-autoUpdater.on('update-downloaded', () => {
-  mainWindow?.webContents.send('update-status', { status: 'ready' })
+autoUpdater.on('checking-for-update', () => {
+  mainWindow?.webContents.send('update-status', { status: 'checking' })
+})
+
+autoUpdater.on('update-available', (info) => {
+  updateDownloading = true
+  mainWindow?.webContents.send('update-status', {
+    status: 'downloading',
+    version: info.version
+  })
+})
+
+autoUpdater.on('download-progress', (progress) => {
+  mainWindow?.webContents.send('update-status', {
+    status: 'downloading',
+    percent: progress.percent,
+    speed: progress.bytesPerSecond
+  })
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  updateDownloading = false
+  mainWindow?.webContents.send('update-status', {
+    status: 'ready',
+    version: info.version
+  })
   dialog.showMessageBox(mainWindow, {
     type: 'info',
     title: '发现新版本',
-    message: '新版本已下载完成，是否立即重启安装？',
+    message: `新版本 ${info.version} 已下载完成，是否立即重启安装？`,
     buttons: ['立即重启', '稍后']
   }).then(({ response }) => {
     if (response === 0) autoUpdater.quitAndInstall()
   })
 })
 
-autoUpdater.on('error', (err) => console.log('[updater] 错误:', err.message))
+autoUpdater.on('update-not-available', () => {
+  mainWindow?.webContents.send('update-status', { status: 'up-to-date' })
+})
+
+autoUpdater.on('error', (err) => {
+  updateDownloading = false
+  console.log('[updater] 错误:', err.message)
+  mainWindow?.webContents.send('update-status', { status: 'error', error: err.message })
+})
 
 // ── 生命周期 ──────────────────────────────────────────
 app.whenReady().then(async () => {

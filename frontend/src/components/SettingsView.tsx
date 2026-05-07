@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useStore } from '@/store/useStore';
-import { Sun, Moon, Terminal, Shield } from 'lucide-react';
+import { Sun, Moon, Terminal, Shield, RefreshCw, Download, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function SettingsView() {
   const wsConnected = useStore((s) => s.wsConnected);
+  const updateState = useStore((s) => s.updateState);
 
   // CLI config local state
   const [cliEnabled, setCliEnabled] = useState(true);
@@ -16,6 +17,14 @@ export default function SettingsView() {
     // TODO(H): persist CLI config to backend via WebSocket or API
     setCliSaved(true);
     setTimeout(() => setCliSaved(false), 2000);
+  };
+
+  const handleCheckUpdate = useCallback(() => {
+    window.electronAPI?.checkForUpdate();
+  }, []);
+
+  const getVersion = () => {
+    return window.electronAPI?.getVersion() || '0.5.0';
   };
 
   return (
@@ -128,13 +137,57 @@ export default function SettingsView() {
           </div>
         </div>
 
-        {/* About */}
+        {/* Version & Updates */}
         <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-2">关于</h3>
-          <div className="text-sm text-gray-500 space-y-1">
-            <p>Yu</p>
-            <p>版本: 0.5.0</p>
-            <p>AI Agent Messenger OS</p>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">版本与更新</h3>
+          <div className="text-sm text-gray-500 space-y-2">
+            <p>Yu — AI Agent 桌面平台</p>
+            <p>当前版本: {getVersion()}</p>
+
+            {/* Update status */}
+            <div className="flex items-center gap-2">
+              {updateState?.status === 'checking' && (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                  <span className="text-gray-500">正在检查更新...</span>
+                </>
+              )}
+              {updateState?.status === 'downloading' && (
+                <>
+                  <Download className="w-3.5 h-3.5 animate-pulse text-blue-500" />
+                  <span className="text-blue-600">
+                    {updateState.version ? `正在下载 v${updateState.version}` : '正在下载更新'}
+                    {updateState.percent != null ? ` (${Math.round(updateState.percent)}%)` : ''}
+                  </span>
+                </>
+              )}
+              {updateState?.status === 'ready' && (
+                <span className="text-green-600 flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  新版本 {updateState.version} 已就绪，重启应用即可安装
+                </span>
+              )}
+              {updateState?.status === 'up-to-date' && (
+                <span className="text-green-600 flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  已是最新版本
+                </span>
+              )}
+              {updateState?.status === 'error' && (
+                <span className="text-red-500 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  更新检查失败: {updateState.error}
+                </span>
+              )}
+              {!updateState && window.electronAPI && (
+                <button
+                  onClick={handleCheckUpdate}
+                  className="text-gray-500 hover:text-gray-700 underline underline-offset-4 transition-colors"
+                >
+                  检查更新
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

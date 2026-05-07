@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '@/store/useStore';
-import type { WSServerMessage, WSClientMessage } from '@/types';
+import type { WSServerMessage, WSClientMessage, UpdateState } from '@/types';
 
 const WS_URL = 'ws://localhost:7890/ws';
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 10000];
@@ -37,6 +37,7 @@ export function useWebSocket() {
     setToolExecuting,
     activeConversationId,
     activeGroupId,
+    setUpdateState,
   } = useStore();
 
   const scheduleReconnect = useCallback(() => {
@@ -309,6 +310,15 @@ export function useWebSocket() {
       sendJson({ type: 'get_group_messages', group_id: activeGroupId });
     }
   }, [activeGroupId, sendJson]);
+
+  // 监听 Electron IPC 更新状态
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.onUpdateStatus((data) => {
+        setUpdateState(data as UpdateState);
+      });
+    }
+  }, [setUpdateState]);
 
   return { sendJson };
 }

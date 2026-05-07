@@ -1,6 +1,6 @@
 {
   "name": "yu",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Yu - AI Agent 桌面平台",
   "author": "Yu",
   "main": "electron/main.js",
