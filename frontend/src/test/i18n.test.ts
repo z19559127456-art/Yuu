@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { t, setLocale, getLocale, useT } from '@/i18n';
+import { t, setLocale, getLocale } from '@/i18n';
 
 describe('i18n', () => {
   beforeEach(() => {
@@ -32,7 +32,6 @@ describe('i18n', () => {
     setLocale('en-US');
     expect(t('common.confirm')).not.toBe('确认'); // English
     // zh-CN fallback for missing keys
-    const enKeys = Object.keys({});
     expect(t('common.confirm')).toBeDefined();
   });
 });

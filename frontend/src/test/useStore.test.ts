@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore } from '@/store/useStore';
-import type { Agent, Conversation, Message, HistoryRecord } from '@/types';
+import type { Agent, Conversation, Message } from '@/types';
 
 function makeAgent(id = 'a1', name = '测试助手'): Agent {
   return {

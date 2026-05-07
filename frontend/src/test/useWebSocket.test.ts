@@ -490,7 +490,7 @@ describe('useWebSocket', () => {
         }
       );
       expect(getMsgCall).toBeTruthy();
-      expect(JSON.parse(getMsgCall[0]).conversation_id).toBe('conv-456');
+      expect(JSON.parse(getMsgCall![0]).conversation_id).toBe('conv-456');
     });
   });
 });
