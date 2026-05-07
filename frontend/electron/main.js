@@ -35,7 +35,7 @@ function createWindow() {
 // 启动 Python 后端（已用 PyInstaller 编译为 exe）
 function spawnBackend() {
   const { execFile } = require('child_process')
-  const backendPath = path.join(process.resourcesPath, 'backend', 'vx-agent-backend.exe')
+  const backendPath = path.join(process.resourcesPath, 'backend', 'yu-backend.exe')
 
   const child = execFile(backendPath, [], { cwd: path.dirname(backendPath) })
   child.stdout?.on('data', (d) => console.log('[backend]', d.toString()))

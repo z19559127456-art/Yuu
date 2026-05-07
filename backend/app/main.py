@@ -19,7 +19,7 @@ sock = Sock(app)
 def index():
     return jsonify({
         "name": "Yu",
-        "version": "0.5.0",
+        "version": "0.1.2",
         "status": "running"
     })
 
@@ -35,7 +35,10 @@ def websocket(ws):
     handle_websocket(ws)
 
 
+import os
+
 if __name__ == "__main__":
     print("Starting Yu Backend...")
     init_db()
-    app.run(host="localhost", port=7890, debug=True)
+    debug_mode = os.getenv("YU_DEBUG", "").lower() in ("1", "true", "yes")
+    app.run(host="localhost", port=7890, debug=debug_mode)
