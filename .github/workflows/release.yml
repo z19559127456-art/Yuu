@@ -25,11 +25,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt pyinstaller
+
       - name: Build Python backend EXE
         working-directory: backend
-        run: |
-          pip install -r requirements.txt pyinstaller
-          pyinstaller --clean --windowed --onefile --name yu-backend app/main.py
+        run: pyinstaller --clean yu-backend.spec
 
       - name: Install frontend dependencies
         working-directory: frontend
