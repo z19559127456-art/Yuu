@@ -10,8 +10,23 @@ autoUpdater.autoInstallOnAppQuit = true
 let mainWindow = null
 let backendProcess = null
 
+// ── 清理旧进程 ────────────────────────────────────────
+function cleanupOldBackend() {
+  const { execSync } = require('child_process')
+  try {
+    // 杀掉所有旧版后端进程
+    execSync('taskkill /F /IM vx-agent-backend.exe 2>nul & taskkill /F /IM yu-backend.exe 2>nul & exit 0', { timeout: 3000, windowsHide: true })
+  } catch (_) { /* 忽略 */ }
+  // 删除旧版 exe
+  try {
+    const oldPath = path.join(process.resourcesPath, 'backend', 'vx-agent-backend.exe')
+    require('fs').unlinkSync(oldPath)
+  } catch (_) { /* 不存在就算了 */ }
+}
+
 // ── 启动后端 ──────────────────────────────────────────
 function spawnBackend() {
+  cleanupOldBackend()
   const backendPath = path.join(process.resourcesPath, 'backend', 'yu-backend.exe')
   console.log('[backend] 启动:', backendPath)
 

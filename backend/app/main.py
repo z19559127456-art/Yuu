@@ -19,7 +19,7 @@ sock = Sock(app)
 def index():
     return jsonify({
         "name": "Yu",
-        "version": "0.1.2",
+        "version": "0.1.4",
         "status": "running"
     })
 
@@ -40,5 +40,5 @@ import os
 if __name__ == "__main__":
     print("Starting Yu Backend...")
     init_db()
-    debug_mode = os.getenv("YU_DEBUG", "").lower() in ("1", "true", "yes")
-    app.run(host="localhost", port=7890, debug=debug_mode)
+    # 生产模式：彻底禁用 debug 和 reloader，防止僵尸进程
+    app.run(host="localhost", port=7890, debug=False, use_reloader=False)
