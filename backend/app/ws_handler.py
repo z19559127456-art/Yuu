@@ -631,14 +631,30 @@ def handle_message(ws, data: dict, db: Session):
             return
 
         sender_id = participants[0].agent_id
+        now = datetime.now(timezone.utc)
 
-        # 1. Echo user message to frontend
+        # 1. Save user message to DB and echo to frontend
+        user_msg = Message(
+            conversation_id="",
+            group_id=group_id,
+            role="user",
+            type="text",
+            content=content,
+            status="sent",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(user_msg)
+        db.commit()
+        db.refresh(user_msg)
+
         _send_json(ws, {"type": "group_message", "message": {
+            "id": user_msg.id,
             "group_id": group_id,
             "sender_id": sender_id,
             "content": content,
             "sender_name": "你",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now.isoformat(),
         }})
 
         # 2. Parse @mentions
@@ -668,12 +684,31 @@ def handle_message(ws, data: dict, db: Session):
                 for chunk in llm.stream_sync(messages):
                     response += chunk
 
+                response_content = response.strip() or f"[{agent.name}: 无响应]"
+                resp_now = datetime.now(timezone.utc)
+
+                # Save agent response to DB
+                agent_msg = Message(
+                    conversation_id="",
+                    group_id=group_id,
+                    role="assistant",
+                    type="text",
+                    content=response_content,
+                    status="sent",
+                    created_at=resp_now,
+                    updated_at=resp_now,
+                )
+                db.add(agent_msg)
+                db.commit()
+                db.refresh(agent_msg)
+
                 _send_json(ws, {"type": "group_message", "message": {
+                    "id": agent_msg.id,
                     "group_id": group_id,
                     "sender_id": agent.id,
-                    "content": response.strip() or f"[{agent.name}: 无响应]",
+                    "content": response_content,
                     "sender_name": agent.name,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": resp_now.isoformat(),
                 }})
             except Exception as e:
                 logger.exception(f"Agent {agent.name} response failed")
@@ -684,6 +719,25 @@ def handle_message(ws, data: dict, db: Session):
                     "sender_name": agent.name,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }})
+
+        # Update group's updated_at
+        group.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        return
+
+    if msg_type == "get_group_messages":
+        group_id = data.get("group_id")
+        if not group_id:
+            _send_json(ws, {"type": "error", "message": "Missing group_id"})
+            return
+
+        msgs = (
+            db.query(Message)
+            .filter(Message.group_id == group_id)
+            .order_by(Message.created_at.asc())
+            .all()
+        )
+        _send_json(ws, {"type": "group_message_list", "messages": [m.to_dict() for m in msgs]})
         return
 
     # ---- Memory Query ----

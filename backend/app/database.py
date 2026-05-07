@@ -28,6 +28,16 @@ def init_db():
 
     Base.metadata.create_all(bind=engine)
 
+    # Migration: add group_id column to messages for existing databases
+    with engine.connect() as conn:
+        result = conn.exec_driver_sql(
+            "SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='group_id'"
+        )
+        has_column = result.scalar() > 0
+        if not has_column:
+            conn.exec_driver_sql("ALTER TABLE messages ADD COLUMN group_id VARCHAR")
+            conn.commit()
+
     # Seed a default agent if none exist
     db = SessionLocal()
     try:

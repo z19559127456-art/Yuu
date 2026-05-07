@@ -15,7 +15,6 @@ export default function AgentList() {
   const activeAgentId = useStore((s) => s.activeAgentId);
   const agents = useStore((s) => s.agents);
   const ws = useStore((s) => s.ws);
-  const setMessages = useStore((s) => s.setMessages);
 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -175,7 +174,6 @@ export default function AgentList() {
                 onClick={() => {
                   setActiveGroupId(group.id);
                   setActiveConversationId(null);
-                  setMessages([]);
                   setConfirmDelete(null);
                 }}
                 className={`w-full flex items-start gap-3 px-5 py-3 text-left transition-colors

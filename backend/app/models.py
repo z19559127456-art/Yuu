@@ -130,6 +130,7 @@ class Message(Base):
 
     id = Column(String, primary_key=True, default=_uuid)
     conversation_id = Column(String, ForeignKey("conversations.id"), nullable=False)
+    group_id = Column(String, nullable=True, default=None)  # 群聊消息关联的群组 ID
     role = Column(String(16), nullable=False)  # 'user' | 'assistant' | 'system' | 'tool'
     type = Column(String(32), default="text")  # 'text' | 'tool_call' | 'tool_result' | 'error' | 'system_notice'
     content = Column(Text, nullable=False)
@@ -152,6 +153,7 @@ class Message(Base):
         return {
             "id": self.id,
             "conversation_id": self.conversation_id,
+            "group_id": self.group_id or "",
             "role": self.role,
             "type": self.type or "text",
             "content": self.content,

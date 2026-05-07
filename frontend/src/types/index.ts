@@ -96,6 +96,7 @@ export interface ToolResult {
 export interface Message {
   id: string;
   conversation_id: string;
+  group_id?: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
   type: string;
   content: string;
@@ -200,6 +201,7 @@ export type WSClientMessage =
   // Group chat
   | { type: 'group_send'; group_id: string; content: string }
   | { type: 'get_groups' }
+  | { type: 'get_group_messages'; group_id: string }
   | { type: 'create_group'; title: string; topic?: string; mode?: string; participant_ids?: string[] }
   // Memory
   | { type: 'memory_query'; agent_id: string; query: string; k?: number }
@@ -232,7 +234,8 @@ export type WSServerMessage =
   // Group messages
   | { type: 'group_list'; groups: GroupConversation[] }
   | { type: 'group_created'; group: GroupConversation }
-  | { type: 'group_message'; message: { group_id: string; sender_id: string; sender_name?: string; content: string; timestamp: string } }
+  | { type: 'group_message_list'; messages: Message[] }
+  | { type: 'group_message'; message: { id?: string; group_id: string; sender_id: string; sender_name?: string; content: string; timestamp: string } }
   // Memory
   | { type: 'memory_result'; results: unknown[] }
   // History

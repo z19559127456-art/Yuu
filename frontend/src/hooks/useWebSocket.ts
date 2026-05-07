@@ -10,6 +10,7 @@ export function useWebSocket() {
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const initialSetupDoneRef = useRef(false);
   const handleMsgRef = useRef<(data: WSServerMessage) => void>(() => {});
 
   const {
@@ -68,6 +69,15 @@ export function useWebSocket() {
       // Fetch agents and groups on connect
       ws.send(JSON.stringify({ type: 'get_agents' } as WSClientMessage));
       ws.send(JSON.stringify({ type: 'get_groups' } as WSClientMessage));
+
+      // Restore messages for active conversation/group after reconnect
+      const state = useStore.getState();
+      if (state.activeConversationId) {
+        ws.send(JSON.stringify({ type: 'get_messages', conversation_id: state.activeConversationId } as WSClientMessage));
+      }
+      if (state.activeGroupId) {
+        ws.send(JSON.stringify({ type: 'get_group_messages', group_id: state.activeGroupId } as WSClientMessage));
+      }
     };
 
     ws.onmessage = (event) => {
@@ -100,7 +110,8 @@ export function useWebSocket() {
         // Agent CRUD
         case 'agent_list':
           setAgents(data.agents);
-          if (data.agents.length > 0) {
+          if (data.agents.length > 0 && !initialSetupDoneRef.current) {
+            initialSetupDoneRef.current = true;
             const first = data.agents[0];
             setActiveAgentId(first.id);
             const ws = wsRef.current;
@@ -197,13 +208,18 @@ export function useWebSocket() {
           }
           break;
 
+        case 'group_message_list':
+          setMessages(data.messages);
+          break;
+
         case 'group_message':
           if (data.message && activeGroupId && data.message.group_id === activeGroupId) {
             const isUser = data.message.sender_name === '你';
             const prefix = data.message.sender_name ? `**${data.message.sender_name}**: ` : '';
             addMessage({
-              id: `gm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              id: data.message.id || `gm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               conversation_id: '',
+              group_id: data.message.group_id,
               role: isUser ? 'user' : 'assistant',
               type: 'text',
               content: prefix + data.message.content,
@@ -268,6 +284,7 @@ export function useWebSocket() {
 
   useEffect(() => {
     mountedRef.current = true;
+    initialSetupDoneRef.current = false;
     connect();
 
     return () => {
@@ -286,6 +303,12 @@ export function useWebSocket() {
       sendJson({ type: 'get_messages', conversation_id: activeConversationId });
     }
   }, [activeConversationId, sendJson]);
+
+  useEffect(() => {
+    if (activeGroupId) {
+      sendJson({ type: 'get_group_messages', group_id: activeGroupId });
+    }
+  }, [activeGroupId, sendJson]);
 
   return { sendJson };
 }
