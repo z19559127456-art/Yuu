@@ -2,6 +2,8 @@ import { useStore } from '@/store/useStore';
 import ChatHeader from './ChatHeader';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
+import PlanView from './PlanView';
+import TaskProgress from './TaskProgress';
 import type { WSClientMessage } from '@/types';
 
 interface Props {
@@ -11,6 +13,11 @@ interface Props {
 export default function ChatArea({ sendJson }: Props) {
   const activeConversationId = useStore((s) => s.activeConversationId);
   const activeGroupId = useStore((s) => s.activeGroupId);
+  const currentPlan = useStore((s) => s.currentPlan);
+  const groups = useStore((s) => s.groups);
+
+  const group = groups.find((g) => g.id === activeGroupId);
+  const isTaskMode = group?.mode === 'task';
 
   if (!activeConversationId && !activeGroupId) {
     return (
@@ -39,7 +46,15 @@ export default function ChatArea({ sendJson }: Props) {
 
   return (
     <div className="flex-1 flex flex-col bg-white">
-      <ChatHeader />
+      <ChatHeader sendJson={sendJson} />
+      {isTaskMode && currentPlan && (
+        <div className="border-b border-gray-200 bg-gray-50/50 px-4 py-2">
+          <PlanView plan={currentPlan} />
+        </div>
+      )}
+      {isTaskMode && currentPlan && (
+        <TaskProgress tasks={currentPlan.subtasks.map((st) => ({ id: st.id, title: st.title, status: st.status }))} />
+      )}
       <MessageList />
       <ChatInput sendJson={sendJson} />
     </div>

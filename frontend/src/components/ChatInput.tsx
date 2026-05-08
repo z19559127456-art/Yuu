@@ -110,11 +110,20 @@ export default function ChatInput({ sendJson }: Props) {
         content: text.trim(),
       });
     } else if (activeGroupId) {
-      sendJson({
-        type: 'group_send',
-        group_id: activeGroupId,
-        content: text.trim(),
-      });
+      const currentGroup = useStore.getState().groups.find((g) => g.id === activeGroupId);
+      if (currentGroup?.mode === 'free_dialogue') {
+        sendJson({
+          type: 'free_dialogue_send',
+          group_id: activeGroupId,
+          content: text.trim(),
+        });
+      } else {
+        sendJson({
+          type: 'group_send',
+          group_id: activeGroupId,
+          content: text.trim(),
+        });
+      }
     }
     setText('');
     setShowMentions(false);

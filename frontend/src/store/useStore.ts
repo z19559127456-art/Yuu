@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Agent, Conversation, Message, NavItem, HistoryRecord, GroupConversation, UpdateState } from '@/types';
+import type { Agent, Conversation, Message, NavItem, HistoryRecord, GroupConversation, UpdateState, Plan, SubTask, GroupMode } from '@/types';
 
 interface AppState {
   // WebSocket
@@ -32,6 +32,17 @@ interface AppState {
 
   // Update state
   updateState: UpdateState | null;
+
+  // Free dialogue
+  freeDialogueActive: Record<string, boolean>;
+  typingAgents: Record<string, string[]>;
+  consensusResult: { group_id: string; summary: string; dissenting: string[] } | null;
+
+  // Task dispatch
+  currentPlan: Plan | null;
+
+  // Approval
+  pendingApproval: { request_id: string; type: string; approval_type: string; context: Record<string, unknown>; requester: string; timeout_seconds: number; dangerous: boolean } | null;
 
   // Actions
   setWs: (ws: WebSocket | null) => void;
@@ -70,6 +81,14 @@ interface AppState {
   setLastError: (error: string | null) => void;
 
   setUpdateState: (updateState: UpdateState | null) => void;
+
+  setFreeDialogueActive: (groupId: string, active: boolean) => void;
+  setTypingAgents: (groupId: string, agents: string[]) => void;
+  setConsensusResult: (result: { group_id: string; summary: string; dissenting: string[] } | null) => void;
+  setCurrentPlan: (plan: Plan | null) => void;
+  updateSubtask: (subtaskId: string, updates: Partial<{ status: SubTask['status']; result: Record<string, unknown> }>) => void;
+  setPendingApproval: (approval: { request_id: string; type: string; approval_type: string; context: Record<string, unknown>; requester: string; timeout_seconds: number; dangerous: boolean } | null) => void;
+  updateGroupMode: (groupId: string, mode: GroupMode) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -159,4 +178,39 @@ export const useStore = create<AppState>((set) => ({
 
   updateState: null,
   setUpdateState: (updateState) => set({ updateState }),
+
+  freeDialogueActive: {},
+  typingAgents: {},
+  consensusResult: null,
+  currentPlan: null,
+  pendingApproval: null,
+
+  setFreeDialogueActive: (groupId, active) =>
+    set((state) => ({
+      freeDialogueActive: { ...state.freeDialogueActive, [groupId]: active },
+    })),
+  setTypingAgents: (groupId, agents) =>
+    set((state) => ({
+      typingAgents: { ...state.typingAgents, [groupId]: agents },
+    })),
+  setConsensusResult: (result) => set({ consensusResult: result }),
+  setCurrentPlan: (plan) => set({ currentPlan: plan }),
+  updateSubtask: (subtaskId, updates) =>
+    set((state) => ({
+      currentPlan: state.currentPlan
+        ? {
+            ...state.currentPlan,
+            subtasks: state.currentPlan.subtasks.map((st) =>
+              st.id === subtaskId ? { ...st, ...updates } : st
+            ),
+          }
+        : null,
+    })),
+  setPendingApproval: (approval) => set({ pendingApproval: approval }),
+  updateGroupMode: (groupId, mode) =>
+    set((state) => ({
+      groups: state.groups.map((g) =>
+        g.id === groupId ? { ...g, mode } : g
+      ),
+    })),
 }));

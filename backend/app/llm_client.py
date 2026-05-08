@@ -28,6 +28,26 @@ class LLMClient:
     def __init__(self, config: LLMConfig):
         self.config = config
 
+    @classmethod
+    def from_config(
+        cls,
+        provider: str = "openai",
+        model: str = "gpt-4o",
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        api_key: str = "",
+        api_base_url: str = "",
+    ) -> "LLMClient":
+        """Create an LLMClient from individual parameters."""
+        return cls(LLMConfig(
+            provider=provider,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=api_key,
+            api_base_url=api_base_url,
+        ))
+
     async def complete(self, messages: list[dict]) -> str:
         """Non-streaming completion. Returns the full response text."""
         result = ""

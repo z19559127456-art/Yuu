@@ -142,11 +142,13 @@ export interface SubTask {
   updated_at: string;
 }
 
+export type GroupMode = 'task' | 'discussion' | 'free_dialogue';
+
 export interface GroupConversation {
   id: string;
   title: string;
   topic: string;
-  mode: 'task' | 'discussion';
+  mode: GroupMode;
   status: 'active' | 'archived';
   created_by: string;
   participants?: GroupParticipant[];
@@ -214,6 +216,18 @@ export type WSClientMessage =
   | { type: 'create_group'; title: string; topic?: string; mode?: string; participant_ids?: string[] }
   // Memory
   | { type: 'memory_query'; agent_id: string; query: string; k?: number }
+  // Free dialogue
+  | { type: 'start_free_dialogue'; group_id: string; topic?: string }
+  | { type: 'free_dialogue_send'; group_id: string; content: string }
+  | { type: 'switch_group_mode'; group_id: string; mode: GroupMode }
+  | { type: 'stop_free_dialogue'; group_id: string }
+  // Task dispatch
+  | { type: 'decompose_and_dispatch'; group_id: string; goal: string; context?: string }
+  | { type: 'get_plan_progress'; plan_id: string }
+  | { type: 'get_plan_detail'; plan_id: string }
+  | { type: 'retry_subtask'; subtask_id: string }
+  // Approval
+  | { type: 'approval_response'; request_id: string; response: 'approved' | 'rejected' | 'modified'; feedback?: string; modified_params?: Record<string, unknown> }
   // Message operations
   | { type: 'edit_message'; message_id: string; content: string }
   | { type: 'recall_message'; message_id: string }
@@ -252,5 +266,21 @@ export type WSServerMessage =
   // Message operations
   | { type: 'message_edited'; message: Message }
   | { type: 'message_recalled'; message: Message }
+  // Free dialogue
+  | { type: 'free_dialogue_message'; group_id: string; agent_id: string; agent_name: string; content: string; reply_to?: string; timestamp: string }
+  | { type: 'free_dialogue_typing'; group_id: string; agent_id: string; agent_name: string }
+  | { type: 'consensus_reached'; group_id: string; summary: string; dissenting_agents?: string[] }
+  | { type: 'free_dialogue_ended'; group_id: string; reason: string; turns: number; summary?: string }
+  | { type: 'mode_switched'; group_id: string; mode: GroupMode }
+  // Task dispatch
+  | { type: 'plan_decomposed'; plan: Plan }
+  | { type: 'subtask_started'; subtask_id: string; assigned_agent_id: string; agent_name: string }
+  | { type: 'subtask_completed'; subtask_id: string; result: Record<string, unknown> }
+  | { type: 'subtask_failed'; subtask_id: string; error: string }
+  | { type: 'plan_progress'; plan_id: string; completed: number; total: number; running: number; failed: number; pending: number }
+  | { type: 'plan_merged_result'; plan_id: string; merged_output: string; summary: string }
+  // Approval
+  | { type: 'approval_request'; request_id: string; approval_type: string; context: Record<string, unknown>; requester: string; timeout_seconds: number; dangerous?: boolean }
+  | { type: 'approval_timeout'; request_id: string; approval_type: string }
   // Error
   | { type: 'error'; message: string };

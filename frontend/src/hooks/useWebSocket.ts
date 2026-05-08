@@ -38,6 +38,13 @@ export function useWebSocket() {
     activeConversationId,
     activeGroupId,
     setUpdateState,
+    setFreeDialogueActive,
+    setTypingAgents,
+    setConsensusResult,
+    setCurrentPlan,
+    updateSubtask,
+    setPendingApproval,
+    updateGroupMode,
   } = useStore();
 
   const scheduleReconnect = useCallback(() => {
@@ -257,6 +264,120 @@ export function useWebSocket() {
           finalizeMessage(data.message);
           break;
 
+        case 'free_dialogue_message':
+          if (activeGroupId && data.group_id === activeGroupId) {
+            addMessage({
+              id: `fd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              conversation_id: '',
+              group_id: data.group_id,
+              role: 'assistant',
+              type: 'text',
+              content: `**${data.agent_name}**: ${data.content}`,
+              attachments: [],
+              tool_calls: [],
+              tool_results: [],
+              reply_to: data.reply_to || '',
+              is_edited: false,
+              edited_from: '',
+              is_pinned: false,
+              is_remembered: false,
+              status: 'sent',
+              created_at: data.timestamp || new Date().toISOString(),
+              updated_at: data.timestamp || new Date().toISOString(),
+            });
+          }
+          break;
+
+        case 'free_dialogue_typing':
+          if (data.group_id !== activeGroupId) break;
+          useStore.getState().setTypingAgents(data.group_id, [
+            ...(useStore.getState().typingAgents[data.group_id] || []).filter(
+              (n) => n !== data.agent_name
+            ),
+            data.agent_name,
+          ]);
+          break;
+
+        case 'consensus_reached':
+          setConsensusResult({
+            group_id: data.group_id,
+            summary: data.summary,
+            dissenting: data.dissenting_agents || [],
+          });
+          break;
+
+        case 'free_dialogue_ended':
+          setFreeDialogueActive(data.group_id, false);
+          setConsensusResult(null);
+          break;
+
+        case 'mode_switched':
+          updateGroupMode(data.group_id, data.mode);
+          break;
+
+        case 'plan_decomposed':
+          setCurrentPlan(data.plan);
+          break;
+
+        case 'subtask_started':
+          updateSubtask(data.subtask_id, { status: 'running' });
+          break;
+
+        case 'subtask_completed':
+          updateSubtask(data.subtask_id, {
+            status: 'completed',
+            result: data.result,
+          });
+          break;
+
+        case 'subtask_failed':
+          updateSubtask(data.subtask_id, { status: 'failed' });
+          break;
+
+        case 'plan_progress':
+          // Progress updates are reflected through currentPlan updates
+          break;
+
+        case 'plan_merged_result':
+          if (activeGroupId) {
+            addMessage({
+              id: `pr-${Date.now()}`,
+              conversation_id: '',
+              group_id: activeGroupId,
+              role: 'system',
+              type: 'system_notice',
+              content: `**任务完成**: ${data.summary}\n\n${data.merged_output}`,
+              attachments: [],
+              tool_calls: [],
+              tool_results: [],
+              reply_to: '',
+              is_edited: false,
+              edited_from: '',
+              is_pinned: false,
+              is_remembered: false,
+              status: 'sent',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+          }
+          break;
+
+        case 'approval_request':
+          setPendingApproval({
+            request_id: data.request_id,
+            type: data.approval_type,
+            approval_type: data.approval_type,
+            context: data.context,
+            requester: data.requester,
+            timeout_seconds: data.timeout_seconds,
+            dangerous: data.dangerous || false,
+          });
+          break;
+
+        case 'approval_timeout':
+          setPendingApproval(null);
+          break;
+
         case 'error':
           console.error('Server error:', data.message);
           useStore.getState().setLastError(data.message);
@@ -270,6 +391,8 @@ export function useWebSocket() {
       finalizeMessage, setHistoryRecords, setActiveAgentId,
       setActiveConversationId, setActiveGroupId, setIsAiResponding, setToolExecuting,
       activeGroupId, activeConversationId, addGroup, setGroups,
+      setFreeDialogueActive, setTypingAgents, setConsensusResult,
+      setCurrentPlan, updateSubtask, setPendingApproval, updateGroupMode,
     ]
   );
 

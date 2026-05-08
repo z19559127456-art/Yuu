@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { X, Users, UserPlus } from 'lucide-react';
+import type { GroupMode } from '@/types';
+
+const MODE_OPTIONS: { value: GroupMode; label: string; desc: string }[] = [
+  { value: 'discussion', label: '讨论模式', desc: 'Agent 轮流发言讨论' },
+  { value: 'free_dialogue', label: '自由对话', desc: 'Agent 自由协商、辩论、达成共识' },
+  { value: 'task', label: '任务模式', desc: '拆解任务→分配 Agent→执行' },
+];
 
 interface Props {
   open: boolean;
@@ -14,6 +21,7 @@ export default function CreateConversationDialog({ open, onClose }: Props) {
 
   const [name, setName] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [groupMode, setGroupMode] = useState<GroupMode>('discussion');
 
   if (!open) return null;
 
@@ -40,7 +48,7 @@ export default function CreateConversationDialog({ open, onClose }: Props) {
         type: 'create_group',
         title,
         topic: '',
-        mode: 'discussion',
+        mode: groupMode,
         participant_ids: ids,
       }));
     } else {
@@ -145,6 +153,40 @@ export default function CreateConversationDialog({ open, onClose }: Props) {
               )}
             </div>
           </div>
+
+          {/* Mode Selector (group only) */}
+          {isGroup && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                群聊模式
+              </label>
+              <div className="space-y-2">
+                {MODE_OPTIONS.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-start gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors border
+                      ${groupMode === opt.value
+                        ? 'bg-blue-50 border-blue-300'
+                        : 'hover:bg-gray-50 border-gray-200'
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="groupMode"
+                      value={opt.value}
+                      checked={groupMode === opt.value}
+                      onChange={() => setGroupMode(opt.value)}
+                      className="mt-0.5 w-4 h-4 text-blue-500 focus:ring-blue-400"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{opt.label}</p>
+                      <p className="text-xs text-gray-400">{opt.desc}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Hint */}
           <p className="text-xs text-gray-400">

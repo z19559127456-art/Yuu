@@ -304,9 +304,18 @@ class Orchestrator:
             if self._callback:
                 self._callback.on_subtask_start(subtask)
 
-            # Work phase
+            # Determine which agent executes this subtask
+            assigned_agent_id = subtask.assigned_agent_id
+            if assigned_agent_id:
+                executor = self.db.query(Agent).filter(Agent.id == assigned_agent_id).first()
+                if not executor:
+                    executor = agent
+            else:
+                executor = agent
+
+            # Work phase — use the assigned agent
             worker_result = await self.worker.execute(
-                agent, subtask, conversation_id,
+                executor, subtask, conversation_id,
                 context=self._build_subtask_context(subtask),
             )
             self._result.subtask_results[tid] = worker_result

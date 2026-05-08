@@ -39,10 +39,12 @@ from app.memory_manager import L1Cache, L2SummaryManager
 from app.vector_memory import VectorMemory
 
 # Dialog E — group chat & security
-from app.collaboration_engine import CollaborationEngine
+from app.collaboration_engine import CollaborationEngine, get_or_create_engine, get_engine, remove_engine, SessionState, CollaborationMode as CollabMode
 from app.group_chat_bus import GroupChatBus
 from app.deadlock_detector import DeadlockDetector
 from app.security import PermissionChecker, AuditLogger
+from app.task_dispatcher import TaskDispatcher, DispatchStrategy
+from app.approval_manager import ApprovalManager, ApprovalConfig
 
 logger = logging.getLogger(__name__)
 
@@ -725,6 +727,95 @@ def handle_message(ws, data: dict, db: Session):
         db.commit()
         return
 
+    # ---- Free Dialogue ----
+    if msg_type == "start_free_dialogue":
+        group_id = data.get("group_id")
+        topic = data.get("topic", "")
+
+        group = db.query(GroupConversation).filter(GroupConversation.id == group_id).first()
+        if not group:
+            _send_json(ws, {"type": "error", "message": "Group not found"})
+            return
+
+        group.mode = "free_dialogue"
+        db.commit()
+
+        api_keys = _get_api_keys()
+        engine = get_or_create_engine(group_id, db, api_keys)
+
+        # Register callback to forward dialogue messages to WS
+        engine.on_event(lambda event: _send_json(ws, event) if isinstance(event, dict) else None)
+
+        # Also register on bus for system notices
+        def on_bus_event(bus_event):
+            _send_json(ws, {
+                "type": "group_message",
+                "message": {
+                    "group_id": group_id,
+                    "sender_id": bus_event.message.sender_id,
+                    "sender_name": bus_event.message.sender_name,
+                    "content": bus_event.message.content,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            })
+
+        try:
+            session = _run_async(engine.start_session(group_id, mode="free_dialogue", topic=topic))
+            _send_json(ws, {"type": "mode_switched", "group_id": group_id, "mode": "free_dialogue"})
+        except Exception as e:
+            logger.exception("Failed to start free dialogue")
+            _send_json(ws, {"type": "error", "message": f"启动自由对话失败: {e}"})
+        return
+
+    if msg_type == "free_dialogue_send":
+        group_id = data.get("group_id")
+        content = data.get("content", "")
+
+        group = db.query(GroupConversation).filter(GroupConversation.id == group_id).first()
+        if not group:
+            _send_json(ws, {"type": "error", "message": "Group not found"})
+            return
+
+        engine = get_engine(group_id)
+        if not engine or not engine._session or engine._session.mode != CollabMode.FREE_DIALOGUE:
+            _send_json(ws, {"type": "error", "message": "No active free dialogue session"})
+            return
+
+        # Inject user message into the active dialogue
+        # For now, forward as a regular group message to the bus
+        _send_json(ws, {"type": "error", "message": "消息注入暂未完全实现，请使用 group_send"})
+        return
+
+    if msg_type == "switch_group_mode":
+        group_id = data.get("group_id")
+        mode = data.get("mode", "discussion")
+
+        group = db.query(GroupConversation).filter(GroupConversation.id == group_id).first()
+        if not group:
+            _send_json(ws, {"type": "error", "message": "Group not found"})
+            return
+
+        old_mode = group.mode
+        group.mode = mode
+        db.commit()
+
+        # Stop existing engine session if running
+        engine = get_engine(group_id)
+        if engine and engine._session and engine._session.state == SessionState.RUNNING:
+            _run_async(engine.stop_session())
+
+        _send_json(ws, {"type": "mode_switched", "group_id": group_id, "mode": mode})
+        return
+
+    if msg_type == "stop_free_dialogue":
+        group_id = data.get("group_id")
+        engine = get_engine(group_id)
+        if engine:
+            _run_async(engine.stop_session())
+            remove_engine(group_id)
+        _send_json(ws, {"type": "free_dialogue_ended", "group_id": group_id, "reason": "用户手动停止", "turns": 0})
+        return
+
     if msg_type == "get_group_messages":
         group_id = data.get("group_id")
         if not group_id:
@@ -831,6 +922,123 @@ def handle_message(ws, data: dict, db: Session):
             query = query.filter(TaskExecution.conversation_id == conversation_id)
         records = query.order_by(TaskExecution.created_at.desc()).limit(100).all()
         _send_json(ws, {"type": "history_list", "records": [r.to_dict() for r in records]})
+        return
+
+    # ---- Task Dispatch ----
+    if msg_type == "decompose_and_dispatch":
+        group_id = data.get("group_id")
+        goal = data.get("goal", "")
+        context = data.get("context", "")
+
+        group = db.query(GroupConversation).filter(GroupConversation.id == group_id).first()
+        if not group:
+            _send_json(ws, {"type": "error", "message": "Group not found"})
+            return
+
+        participants = db.query(GroupParticipant).filter(GroupParticipant.group_id == group_id).all()
+        if not participants:
+            _send_json(ws, {"type": "error", "message": "No participants in group"})
+            return
+
+        available_agents = []
+        for p in participants:
+            agent = db.query(Agent).filter(Agent.id == p.agent_id, Agent.is_active == True).first()
+            if agent:
+                available_agents.append(agent)
+
+        if not available_agents:
+            _send_json(ws, {"type": "error", "message": "No active agents in group"})
+            return
+
+        try:
+            api_keys = _get_api_keys()
+            dispatcher = TaskDispatcher(db, api_keys, available_agents, strategy=DispatchStrategy.CAPABILITY_SCORE)
+            dispatcher.on_progress(lambda e: _send_json(ws, e))
+
+            main_agent = available_agents[0]
+            plan = _run_async(dispatcher.decompose_and_dispatch(
+                agent=main_agent, goal=goal, context=context,
+            ))
+
+            # Update group to task mode
+            group.mode = "task"
+            db.commit()
+
+            _send_json(ws, {"type": "plan_decomposed", "plan": plan.to_dict()})
+
+            # Execute the plan
+            result = _run_async(dispatcher.execute_plan(plan, main_agent))
+        except Exception as e:
+            logger.exception("Task decomposition failed")
+            _send_json(ws, {"type": "error", "message": f"任务拆分失败: {e}"})
+        return
+
+    if msg_type == "get_plan_progress":
+        plan_id = data.get("plan_id")
+        plan = db.query(Plan).filter(Plan.id == plan_id).first()
+        if not plan:
+            _send_json(ws, {"type": "error", "message": "Plan not found"})
+            return
+
+        subtasks = db.query(SubTask).filter(SubTask.plan_id == plan_id).all()
+        statuses = {st.status for st in subtasks}
+        _send_json(ws, {
+            "type": "plan_progress",
+            "plan_id": plan_id,
+            "completed": sum(1 for st in subtasks if st.status == "completed"),
+            "total": len(subtasks),
+            "running": sum(1 for st in subtasks if st.status == "running"),
+            "failed": sum(1 for st in subtasks if st.status == "failed"),
+            "pending": sum(1 for st in subtasks if st.status == "pending"),
+        })
+        return
+
+    if msg_type == "get_plan_detail":
+        plan_id = data.get("plan_id")
+        plan = db.query(Plan).filter(Plan.id == plan_id).first()
+        if not plan:
+            _send_json(ws, {"type": "error", "message": "Plan not found"})
+            return
+
+        subtasks = (
+            db.query(SubTask).filter(SubTask.plan_id == plan_id)
+            .order_by(SubTask.order_index).all()
+        )
+        plan_data = plan.to_dict()
+        plan_data["subtasks"] = [st.to_dict() for st in subtasks]
+        _send_json(ws, {"type": "plan_decomposed", "plan": plan_data})
+        return
+
+    if msg_type == "retry_subtask":
+        subtask_id = data.get("subtask_id")
+        subtask = db.query(SubTask).filter(SubTask.id == subtask_id).first()
+        if not subtask:
+            _send_json(ws, {"type": "error", "message": "Subtask not found"})
+            return
+
+        subtask.status = "pending"
+        subtask.end_time = None
+        db.commit()
+        _send_json(ws, {"type": "subtask_started", "subtask_id": subtask_id, "assigned_agent_id": subtask.assigned_agent_id or "", "agent_name": ""})
+        return
+
+    # ---- Approval ----
+    if msg_type == "approval_response":
+        request_id = data.get("request_id")
+        response = data.get("response", "rejected")
+        feedback = data.get("feedback", "")
+        modified_params = data.get("modified_params")
+
+        # Look up the approval manager — it's stored on the WS handler scope
+        approval_mgr = getattr(handle_message, "_approval_mgr", None)
+        if approval_mgr:
+            ok = approval_mgr.submit_response(request_id, response, feedback, modified_params)
+            if ok:
+                _send_json(ws, {"type": "approval_timeout", "request_id": request_id, "type": ""})
+            else:
+                _send_json(ws, {"type": "error", "message": "Unknown approval request"})
+        else:
+            _send_json(ws, {"type": "error", "message": "No approval manager active"})
         return
 
     # ---- Unknown ----

@@ -27,8 +27,31 @@ from app.orchestrator import Orchestrator, PWCProgressCallback, PWCState
 from app.group_chat_bus import GroupChatBus, BusMessage, BusEvent
 from app.deadlock_detector import DeadlockDetector, DeadlockReport
 from app.security import PermissionChecker, AuditLogger, PermissionResult
+from app.free_dialogue_manager import FreeDialogueManager, FreeDialogueConfig
 
 logger = logging.getLogger(__name__)
+
+# Module-level engine registry for multi-group concurrency
+_engines: dict[str, "CollaborationEngine"] = {}
+
+
+def get_or_create_engine(group_id: str, db: Session, api_keys: dict) -> "CollaborationEngine":
+    """Get or create a CollaborationEngine for a group."""
+    if group_id not in _engines:
+        _engines[group_id] = CollaborationEngine(db, api_keys)
+    return _engines[group_id]
+
+
+def get_engine(group_id: str) -> "Optional[CollaborationEngine]":
+    """Get an existing CollaborationEngine for a group, or None."""
+    return _engines.get(group_id)
+
+
+def remove_engine(group_id: str):
+    """Remove and cleanup a CollaborationEngine for a group."""
+    engine = _engines.pop(group_id, None)
+    if engine:
+        engine.cleanup()
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +61,7 @@ logger = logging.getLogger(__name__)
 class CollaborationMode(str, Enum):
     TASK = "task"
     DISCUSSION = "discussion"
+    FREE_DIALOGUE = "free_dialogue"
 
 
 class SessionState(str, Enum):
@@ -202,6 +226,8 @@ class CollaborationEngine:
         # 根据模式执行
         if mode == "task":
             await self._run_task_mode(group_id, topic)
+        elif mode == "free_dialogue":
+            await self._run_free_dialogue_mode(group_id, topic)
         else:
             await self._run_discussion_mode(group_id, topic)
 
@@ -531,6 +557,78 @@ class CollaborationEngine:
     def on_event(self, callback: Callable):
         """注册外部事件回调（如 WebSocket 转发）。"""
         self._callbacks.append(callback)
+
+    # ------------------------------------------------------------------
+    # 查询
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # 自由对话模式
+    # ------------------------------------------------------------------
+
+    async def _run_free_dialogue_mode(self, group_id: str, topic: str):
+        """
+        自由对话模式 — Agent 自由讨论、协商、达成共识。
+
+        流程：
+        1. 创建 FreeDialogueManager
+        2. 注册回调将消息转发到总线
+        3. 驱动对话循环直到结束
+        """
+        self._session.state = SessionState.RUNNING
+        agents = self._session.agents
+        if not agents:
+            self._session.state = SessionState.FAILED
+            self._session.error = "无可用 Agent"
+            return
+
+        dialogue_mgr = FreeDialogueManager(
+            db=self.db,
+            api_keys=self.api_keys,
+            group_id=group_id,
+            agents=agents,
+            topic=topic,
+            config=FreeDialogueConfig(
+                max_turns=self.config.max_discussion_rounds,
+                max_tokens=self.config.max_discussion_tokens,
+                stall_timeout=self.config.stall_timeout,
+            ),
+        )
+
+        # Register callback to forward messages to bus and external callbacks
+        def forward_to_bus(data: dict):
+            msg_type = data.get("type", "")
+            if msg_type == "free_dialogue_message":
+                asyncio.ensure_future(
+                    self.bus.send_message(
+                        group_id=group_id,
+                        sender_id=data.get("agent_id", ""),
+                        content=data.get("content", ""),
+                        msg_type="text",
+                    )
+                )
+            # Forward to external callbacks (e.g., WebSocket)
+            for cb in self._callbacks:
+                try:
+                    cb(data)
+                except Exception:
+                    logger.exception("外部回调执行失败")
+
+        dialogue_mgr.on_message(forward_to_bus)
+
+        try:
+            await dialogue_mgr.start()
+            self._session.state = SessionState.COMPLETED
+        except Exception as e:
+            logger.exception("自由对话模式执行失败")
+            self._session.state = SessionState.FAILED
+            self._session.error = str(e)
+            await dialogue_mgr.stop()
+
+    def inject_user_message(self, content: str):
+        """将用户消息注入当前自由对话中（注意：需通过 _session 间接引用）"""
+        # 此方法由 ws_handler 通过 get_active_dialogue_manager 调用
+        pass
 
     # ------------------------------------------------------------------
     # 查询

@@ -24,6 +24,7 @@ def init_db():
         WebRecord, UIRecord, VisionRecord, Plan, SubTask,
         TaskExecution, SkillRecord, VectorMemoryEntry,
         GroupConversation, GroupParticipant, DiscussionRound, AuditLog,
+        ApprovalRecord,
     )
 
     Base.metadata.create_all(bind=engine)

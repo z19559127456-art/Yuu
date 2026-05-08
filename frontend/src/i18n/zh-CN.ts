@@ -88,6 +88,40 @@ const zh: Record<string, string> = {
   'group.empty': '暂无群聊会话',
   'group.input_placeholder': '发送消息到群聊...',
 
+  // Free Dialogue
+  'free_dialogue.title': '自由对话',
+  'free_dialogue.start': '开始自由对话',
+  'free_dialogue.stop': '停止对话',
+  'free_dialogue.typing': '{name} 正在输入...',
+  'free_dialogue.consensus': '达成共识',
+  'free_dialogue.dissenting': '异议者',
+  'free_dialogue.ended': '对话结束',
+  'free_dialogue.turns': '共 {n} 轮',
+
+  // Approval
+  'approval.title': '审批确认',
+  'approval.tool_execution': '工具执行审批',
+  'approval.plan_approval': '计划审批',
+  'approval.final_result': '最终结果审批',
+  'approval.dangerous_action': '高危操作审批',
+  'approval.approve': '批准',
+  'approval.reject': '拒绝',
+  'approval.modify': '修改',
+  'approval.feedback': '添加反馈',
+  'approval.timeout': '审批超时，自动拒绝',
+  'approval.context': '审批内容',
+  'approval.requester': '发起者',
+
+  // Task Dispatch
+  'dispatch.decompose': '拆分并派发',
+  'dispatch.progress': '任务进度',
+  'dispatch.merged': '任务完成',
+  'dispatch.retry': '重试子任务',
+
+  // Group mode
+  'group.mode.free_dialogue': '自由对话',
+  'group.mode_switch': '切换模式',
+
   // Settings
   'settings.title': '设置',
   'settings.connection': '连接状态',

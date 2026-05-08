@@ -522,6 +522,40 @@ class DiscussionRound(Base):
         }
 
 
+class ApprovalRecord(Base):
+    """人工审批记录 — Human-in-the-loop 审批审计追踪"""
+    __tablename__ = "approval_records"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    request_id = Column(String(256), nullable=False, index=True)
+    group_id = Column(String, ForeignKey("group_conversations.id"), nullable=True)
+    approval_type = Column(String(32), nullable=False)  # tool_execution / plan_approval / final_result / dangerous_action
+    requester = Column(String(128), default="")
+    context_json = Column(Text, default="{}")
+    response = Column(String(16), default="pending")  # pending / approved / rejected / modified / timeout
+    user_feedback = Column(Text, default="")
+    modified_params_json = Column(Text, default="{}")
+    timeout_seconds = Column(Integer, default=60)
+    responded_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "request_id": self.request_id,
+            "group_id": self.group_id or "",
+            "approval_type": self.approval_type,
+            "requester": self.requester,
+            "context": json.loads(self.context_json or "{}"),
+            "response": self.response,
+            "user_feedback": self.user_feedback or "",
+            "modified_params": json.loads(self.modified_params_json or "{}"),
+            "timeout_seconds": self.timeout_seconds,
+            "responded_at": self.responded_at.isoformat() if self.responded_at else "",
+            "created_at": self.created_at.isoformat() if self.created_at else "",
+        }
+
+
 class AuditLog(Base):
     """安全审计日志"""
     __tablename__ = "audit_logs"

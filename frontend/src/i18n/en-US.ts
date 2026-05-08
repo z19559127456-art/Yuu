@@ -88,6 +88,40 @@ const en: Record<string, string> = {
   'group.empty': 'No group sessions',
   'group.input_placeholder': 'Send message to group...',
 
+  // Free Dialogue
+  'free_dialogue.title': 'Free Dialogue',
+  'free_dialogue.start': 'Start Dialogue',
+  'free_dialogue.stop': 'Stop Dialogue',
+  'free_dialogue.typing': '{name} is typing...',
+  'free_dialogue.consensus': 'Consensus Reached',
+  'free_dialogue.dissenting': 'Dissenting',
+  'free_dialogue.ended': 'Dialogue Ended',
+  'free_dialogue.turns': '{n} turns',
+
+  // Approval
+  'approval.title': 'Approval Required',
+  'approval.tool_execution': 'Tool Execution Approval',
+  'approval.plan_approval': 'Plan Approval',
+  'approval.final_result': 'Final Result Approval',
+  'approval.dangerous_action': 'Dangerous Action Approval',
+  'approval.approve': 'Approve',
+  'approval.reject': 'Reject',
+  'approval.modify': 'Modify',
+  'approval.feedback': 'Add Feedback',
+  'approval.timeout': 'Approval timeout, auto-rejected',
+  'approval.context': 'Context',
+  'approval.requester': 'Requester',
+
+  // Task Dispatch
+  'dispatch.decompose': 'Decompose & Dispatch',
+  'dispatch.progress': 'Task Progress',
+  'dispatch.merged': 'Task Complete',
+  'dispatch.retry': 'Retry Subtask',
+
+  // Group mode
+  'group.mode.free_dialogue': 'Free Dialogue',
+  'group.mode_switch': 'Switch Mode',
+
   // Settings
   'settings.title': 'Settings',
   'settings.connection': 'Connection',
