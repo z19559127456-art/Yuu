@@ -349,9 +349,15 @@ class GroupChatBus:
         if not group:
             raise ValueError(f"群聊不存在: {group_id}")
 
-        sender = self.db.query(Agent).filter(Agent.id == sender_id).first()
-        if not sender:
-            raise ValueError(f"发送者 Agent 不存在: {sender_id}")
+        # 系统消息不需要查 Agent 表
+        if sender_id == "system" or msg_type == "system_notice":
+            sender = None
+            sender_name = "系统"
+        else:
+            sender = self.db.query(Agent).filter(Agent.id == sender_id).first()
+            if not sender:
+                raise ValueError(f"发送者 Agent 不存在: {sender_id}")
+            sender_name = sender.name
 
         # 获取当前轮次号
         last_round = (
@@ -367,7 +373,7 @@ class GroupChatBus:
             id=Message(id=self._gen_id()).id,
             group_id=group_id,
             sender_id=sender_id,
-            sender_name=sender.name,
+            sender_name=sender_name,
             content=content,
             msg_type=msg_type,
             scope=scope,
@@ -423,14 +429,20 @@ class GroupChatBus:
         if not group:
             raise ValueError(f"群聊不存在: {group_id}")
 
-        sender = self.db.query(Agent).filter(Agent.id == sender_id).first()
-        if not sender:
-            raise ValueError(f"发送者 Agent 不存在: {sender_id}")
+        # 系统消息不需要查 Agent 表
+        if sender_id == "system" or msg_type == "system_notice":
+            sender = None
+            sender_name = "系统"
+        else:
+            sender = self.db.query(Agent).filter(Agent.id == sender_id).first()
+            if not sender:
+                raise ValueError(f"发送者 Agent 不存在: {sender_id}")
+            sender_name = sender.name
 
         bus_msg = BusMessage(
             group_id=group_id,
             sender_id=sender_id,
-            sender_name=sender.name,
+            sender_name=sender_name,
             content=content,
             msg_type=msg_type,
             scope=scope,
