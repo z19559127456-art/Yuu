@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, ChevronDown } from 'lucide-react';
+import { Users, ChevronDown, Play, Square } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import type { GroupMode, WSClientMessage } from '@/types';
 
@@ -20,8 +20,12 @@ export default function ChatHeader({ sendJson }: Props) {
   const groups = useStore((s) => s.groups);
   const agents = useStore((s) => s.agents);
   const wsConnected = useStore((s) => s.wsConnected);
+  const freeDialogueActive = useStore((s) => s.freeDialogueActive);
+  const setFreeDialogueActive = useStore((s) => s.setFreeDialogueActive);
 
   const [showModeMenu, setShowModeMenu] = useState(false);
+
+  const isDialogueRunning = activeGroupId ? freeDialogueActive[activeGroupId] || false : false;
 
   const conversation = conversations.find((c) => c.id === activeConversationId);
   const group = groups.find((g) => g.id === activeGroupId);
@@ -42,6 +46,18 @@ export default function ChatHeader({ sendJson }: Props) {
     if (!sendJson || !activeGroupId) return;
     sendJson({ type: 'switch_group_mode', group_id: activeGroupId, mode });
     setShowModeMenu(false);
+  };
+
+  const handleStartDialogue = () => {
+    if (!sendJson || !activeGroupId) return;
+    sendJson({ type: 'start_free_dialogue', group_id: activeGroupId, topic: group?.topic || '' });
+    setFreeDialogueActive(activeGroupId, true);
+  };
+
+  const handleStopDialogue = () => {
+    if (!sendJson || !activeGroupId) return;
+    sendJson({ type: 'stop_free_dialogue', group_id: activeGroupId });
+    setFreeDialogueActive(activeGroupId, false);
   };
 
   // Close mode menu on outside click
@@ -99,6 +115,26 @@ export default function ChatHeader({ sendJson }: Props) {
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Free Dialogue Start/Stop Button */}
+        {isGroup && group?.mode === 'free_dialogue' && (
+          isDialogueRunning ? (
+            <button
+              onClick={handleStopDialogue}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
+            >
+              <Square className="w-3 h-3" />
+              停止对话
+            </button>
+          ) : (
+            <button
+              onClick={handleStartDialogue}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 transition-colors"
+            >
+              <Play className="w-3 h-3" />
+              开始对话
+            </button>
+          )
+        )}
         <span
           className={`inline-block w-2 h-2 rounded-full ${
             wsConnected ? 'bg-green-500' : 'bg-red-400'

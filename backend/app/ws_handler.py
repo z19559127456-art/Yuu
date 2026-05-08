@@ -781,9 +781,23 @@ def handle_message(ws, data: dict, db: Session):
             _send_json(ws, {"type": "error", "message": "No active free dialogue session"})
             return
 
-        # Inject user message into the active dialogue
-        # For now, forward as a regular group message to the bus
-        _send_json(ws, {"type": "error", "message": "消息注入暂未完全实现，请使用 group_send"})
+        # Echo user message to frontend
+        now = datetime.now(timezone.utc)
+        _send_json(ws, {
+            "type": "free_dialogue_message",
+            "group_id": group_id,
+            "agent_id": "user",
+            "agent_name": "你",
+            "content": content,
+            "timestamp": now.isoformat(),
+        })
+
+        # Inject user message into the active dialogue loop
+        try:
+            _run_async(engine.inject_user_message(content))
+        except Exception as e:
+            logger.exception("Failed to inject user message")
+            _send_json(ws, {"type": "error", "message": f"消息注入失败: {e}"})
         return
 
     if msg_type == "switch_group_mode":

@@ -160,6 +160,7 @@ class CollaborationEngine:
         self._session: Optional[CollaborationSession] = None
         self._running = False
         self._callbacks: list[Callable] = []
+        self._dialogue_mgr: Any = None
 
         # 注册总线回调
         self.bus.on_message(self._on_bus_message)
@@ -227,7 +228,9 @@ class CollaborationEngine:
         if mode == "task":
             await self._run_task_mode(group_id, topic)
         elif mode == "free_dialogue":
-            await self._run_free_dialogue_mode(group_id, topic)
+            # Run in background so start_session returns immediately;
+            # user messages can be injected via inject_user_message()
+            asyncio.ensure_future(self._run_free_dialogue_mode(group_id, topic))
         else:
             await self._run_discussion_mode(group_id, topic)
 
@@ -240,6 +243,11 @@ class CollaborationEngine:
 
         self._session.state = SessionState.CANCELLED
         self._running = False
+
+        # Stop free dialogue if running
+        if self._dialogue_mgr:
+            await self._dialogue_mgr.stop()
+            self._dialogue_mgr = None
 
         self.detector.clear_all(session_id=self._session.id)
         await self.detector.stall.stop_background_check()
@@ -582,7 +590,7 @@ class CollaborationEngine:
             self._session.error = "无可用 Agent"
             return
 
-        dialogue_mgr = FreeDialogueManager(
+        self._dialogue_mgr = FreeDialogueManager(
             db=self.db,
             api_keys=self.api_keys,
             group_id=group_id,
@@ -594,6 +602,7 @@ class CollaborationEngine:
                 stall_timeout=self.config.stall_timeout,
             ),
         )
+        dialogue_mgr = self._dialogue_mgr
 
         # Register callback to forward messages to bus and external callbacks
         def forward_to_bus(data: dict):
@@ -624,11 +633,16 @@ class CollaborationEngine:
             self._session.state = SessionState.FAILED
             self._session.error = str(e)
             await dialogue_mgr.stop()
+        finally:
+            self._dialogue_mgr = None
 
-    def inject_user_message(self, content: str):
-        """将用户消息注入当前自由对话中（注意：需通过 _session 间接引用）"""
-        # 此方法由 ws_handler 通过 get_active_dialogue_manager 调用
-        pass
+    async def inject_user_message(self, content: str):
+        """将用户消息注入当前自由对话，触发 agents 回复。"""
+        if not self._dialogue_mgr:
+            return
+        self._dialogue_mgr.inject_user_message(content)
+        # After injecting, let the coordinator know so agents can respond
+        # The dialogue loop is async; the next turn will pick up the new context
 
     # ------------------------------------------------------------------
     # 查询
