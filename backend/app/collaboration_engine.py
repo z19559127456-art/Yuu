@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 # Module-level engine registry for multi-group concurrency
 _engines: dict[str, "CollaborationEngine"] = {}
+# Track free dialogue active state separately for quick lookup
+_free_dialogue_active: set[str] = set()
 
 
 def get_or_create_engine(group_id: str, db: Session, api_keys: dict) -> "CollaborationEngine":
@@ -52,6 +54,20 @@ def remove_engine(group_id: str):
     engine = _engines.pop(group_id, None)
     if engine:
         engine.cleanup()
+    _free_dialogue_active.discard(group_id)
+
+
+def is_free_dialogue_active(group_id: str) -> bool:
+    """Check if a free dialogue session is active for the group."""
+    return group_id in _free_dialogue_active
+
+
+def set_free_dialogue_active(group_id: str, active: bool):
+    """Mark a group's free dialogue as active/inactive."""
+    if active:
+        _free_dialogue_active.add(group_id)
+    else:
+        _free_dialogue_active.discard(group_id)
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +234,10 @@ class CollaborationEngine:
 
         self._running = True
 
+        # Mark free dialogue active immediately for quick WS check
+        if mode == "free_dialogue":
+            set_free_dialogue_active(group_id, True)
+
         # 广播开始消息
         await self.bus.broadcast(
             group_id=group_id,
@@ -248,6 +268,9 @@ class CollaborationEngine:
         if self._dialogue_mgr:
             await self._dialogue_mgr.stop()
             self._dialogue_mgr = None
+
+        if self._session.group_id:
+            set_free_dialogue_active(self._session.group_id, False)
 
         self.detector.clear_all(session_id=self._session.id)
         await self.detector.stall.stop_background_check()
@@ -635,6 +658,7 @@ class CollaborationEngine:
             await dialogue_mgr.stop()
         finally:
             self._dialogue_mgr = None
+            set_free_dialogue_active(group_id, False)
 
     async def inject_user_message(self, content: str):
         """将用户消息注入当前自由对话，触发 agents 回复。"""

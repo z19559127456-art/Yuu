@@ -40,7 +40,7 @@ from app.memory_manager import L1Cache, L2SummaryManager
 from app.vector_memory import VectorMemory
 
 # Dialog E — group chat & security
-from app.collaboration_engine import CollaborationEngine, get_or_create_engine, get_engine, remove_engine, SessionState, CollaborationMode as CollabMode
+from app.collaboration_engine import CollaborationEngine, get_or_create_engine, get_engine, remove_engine, SessionState, CollaborationMode as CollabMode, is_free_dialogue_active
 from app.group_chat_bus import GroupChatBus
 from app.deadlock_detector import DeadlockDetector
 from app.security import PermissionChecker, AuditLogger
@@ -798,10 +798,11 @@ def handle_message(ws, data: dict, db: Session):
             _send_json(ws, {"type": "error", "message": "Group not found"})
             return
 
-        engine = get_engine(group_id)
-        if not engine or not engine._session or engine._session.mode != CollabMode.FREE_DIALOGUE:
+        if not is_free_dialogue_active(group_id):
             _send_json(ws, {"type": "error", "message": "No active free dialogue session"})
             return
+
+        engine = get_engine(group_id)
 
         # Echo user message to frontend
         now = datetime.now(timezone.utc)
@@ -815,11 +816,12 @@ def handle_message(ws, data: dict, db: Session):
         })
 
         # Inject user message into the active dialogue loop
-        try:
-            _run_async(engine.inject_user_message(content))
-        except Exception as e:
-            logger.exception("Failed to inject user message")
-            _send_json(ws, {"type": "error", "message": f"消息注入失败: {e}"})
+        if engine:
+            try:
+                _run_async(engine.inject_user_message(content))
+            except Exception as e:
+                logger.exception("Failed to inject user message")
+                _send_json(ws, {"type": "error", "message": f"消息注入失败: {e}"})
         return
 
     if msg_type == "switch_group_mode":
