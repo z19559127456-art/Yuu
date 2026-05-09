@@ -63,17 +63,27 @@ def _get_api_keys() -> dict:
     }
 
 
+# 全局持久事件循环 — 所有异步任务共用，避免 asyncio.run() 销毁循环导致后台任务被取消
+_global_loop: asyncio.AbstractEventLoop | None = None
+_global_loop_thread: threading.Thread | None = None
+
+
+def _ensure_global_loop() -> asyncio.AbstractEventLoop:
+    global _global_loop, _global_loop_thread
+    if _global_loop is None or _global_loop.is_closed():
+        _global_loop = asyncio.new_event_loop()
+        _global_loop_thread = threading.Thread(
+            target=_global_loop.run_forever, daemon=True, name="async-global"
+        )
+        _global_loop_thread.start()
+    return _global_loop
+
+
 def _run_async(coro):
-    """Run an async coroutine synchronously from a sync Flask-Sock handler."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    # Already in an event loop — shouldn't happen in Flask-Sock, but handle gracefully
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        future = asyncio.run_coroutine_threadsafe(coro, loop)
-        return future.result()
+    """Run an async coroutine synchronously on the global event loop."""
+    loop = _ensure_global_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result()
 
 
 def _extract_tool_calls(content: str) -> list[dict]:
@@ -744,49 +754,33 @@ def handle_message(ws, data: dict, db: Session):
         api_keys = _get_api_keys()
         engine = get_or_create_engine(group_id, db, api_keys)
 
+        # 标记活跃，确保 free_dialogue_send 能立即命中
+        set_free_dialogue_active(group_id, True)
+
         # Register WS forwarding callback
         engine.on_event(lambda event: _send_json(ws, event) if isinstance(event, dict) else None)
 
         # Register bus callback for system messages
-        def on_bus_event(bus_event):
-            _send_json(ws, {
-                "type": "group_message",
-                "message": {
-                    "group_id": group_id,
-                    "sender_id": bus_event.message.sender_id,
-                    "sender_name": bus_event.message.sender_name,
-                    "content": bus_event.message.content,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-            })
-        engine.bus.on_message(on_bus_event)
+        engine.bus.on_message(lambda bus_event: _send_json(ws, {
+            "type": "group_message",
+            "message": {
+                "group_id": group_id,
+                "sender_id": bus_event.message.sender_id,
+                "sender_name": bus_event.message.sender_name,
+                "content": bus_event.message.content,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        }))
 
-        # Run free dialogue in a dedicated thread with its own event loop,
-        # so the background dialogue task keeps running (avoid _run_async's
-        # asyncio.run() destroying the loop and cancelling the background task).
-        def _run_dialogue_thread():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(engine.start_session(group_id, mode="free_dialogue", topic=topic))
-            except Exception:
-                logger.exception("Free dialogue thread ended with error")
-            finally:
-                # Keep the loop alive until cancelled
-                try:
-                    loop.run_forever()
-                except RuntimeError:
-                    pass
-                finally:
-                    loop.close()
-
-        t = threading.Thread(target=_run_dialogue_thread, daemon=True, name=f"fd-{group_id[:8]}")
-        t.start()
-
-        # Give a brief moment for start_session to initialize
-        import time as _time
-        _time.sleep(0.1)
-        _send_json(ws, {"type": "mode_switched", "group_id": group_id, "mode": "free_dialogue"})
+        try:
+            # 使用全局持久事件循环 — ensure_future 后台任务保持运行
+            logger.info("Starting free dialogue for group %s", group_id)
+            _run_async(engine.start_session(group_id, mode="free_dialogue", topic=topic))
+            _send_json(ws, {"type": "mode_switched", "group_id": group_id, "mode": "free_dialogue"})
+        except Exception as e:
+            logger.exception("Failed to start free dialogue")
+            set_free_dialogue_active(group_id, False)
+            _send_json(ws, {"type": "error", "message": f"启动自由对话失败: {e}"})
         return
 
     if msg_type == "free_dialogue_send":
