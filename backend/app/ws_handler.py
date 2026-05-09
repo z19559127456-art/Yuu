@@ -8,6 +8,7 @@ import time
 import asyncio
 import logging
 import traceback
+import threading
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -743,10 +744,10 @@ def handle_message(ws, data: dict, db: Session):
         api_keys = _get_api_keys()
         engine = get_or_create_engine(group_id, db, api_keys)
 
-        # Register callback to forward dialogue messages to WS
+        # Register WS forwarding callback
         engine.on_event(lambda event: _send_json(ws, event) if isinstance(event, dict) else None)
 
-        # Also register on bus for system notices
+        # Register bus callback for system messages
         def on_bus_event(bus_event):
             _send_json(ws, {
                 "type": "group_message",
@@ -758,13 +759,34 @@ def handle_message(ws, data: dict, db: Session):
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             })
+        engine.bus.on_message(on_bus_event)
 
-        try:
-            session = _run_async(engine.start_session(group_id, mode="free_dialogue", topic=topic))
-            _send_json(ws, {"type": "mode_switched", "group_id": group_id, "mode": "free_dialogue"})
-        except Exception as e:
-            logger.exception("Failed to start free dialogue")
-            _send_json(ws, {"type": "error", "message": f"启动自由对话失败: {e}"})
+        # Run free dialogue in a dedicated thread with its own event loop,
+        # so the background dialogue task keeps running (avoid _run_async's
+        # asyncio.run() destroying the loop and cancelling the background task).
+        def _run_dialogue_thread():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(engine.start_session(group_id, mode="free_dialogue", topic=topic))
+            except Exception:
+                logger.exception("Free dialogue thread ended with error")
+            finally:
+                # Keep the loop alive until cancelled
+                try:
+                    loop.run_forever()
+                except RuntimeError:
+                    pass
+                finally:
+                    loop.close()
+
+        t = threading.Thread(target=_run_dialogue_thread, daemon=True, name=f"fd-{group_id[:8]}")
+        t.start()
+
+        # Give a brief moment for start_session to initialize
+        import time as _time
+        _time.sleep(0.1)
+        _send_json(ws, {"type": "mode_switched", "group_id": group_id, "mode": "free_dialogue"})
         return
 
     if msg_type == "free_dialogue_send":
